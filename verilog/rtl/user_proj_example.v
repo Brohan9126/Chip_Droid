@@ -1,39 +1,4 @@
-// SPDX-FileCopyrightText: 2020 Efabless Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-// SPDX-License-Identifier: Apache-2.0
-
 `default_nettype none
-/*
- *-------------------------------------------------------------
- *
- * user_proj_example
- *
- * This is an example of a (trivially simple) user project,
- * showing how the user project can connect to the logic
- * analyzer, the wishbone bus, and the I/O pads.
- *
- * This project generates an integer count, which is output
- * on the user area GPIO pads (digital output only).  The
- * wishbone connection allows the project to be controlled
- * (start and stop) from the management SoC program.
- *
- * See the testbenches in directory "mprj_counter" for the
- * example programs that drive this user project.  The three
- * testbenches are "io_ports", "la_test1", and "la_test2".
- *
- *-------------------------------------------------------------
- */
 
 module user_proj_example #(
     parameter BITS = 32
@@ -43,121 +8,203 @@ module user_proj_example #(
     inout vssd1,	// User area 1 digital ground
 `endif
 
-    // Wishbone Slave ports (WB MI A)
-    input wb_clk_i,
-    input wb_rst_i,
-    input wbs_stb_i,
-    input wbs_cyc_i,
-    input wbs_we_i,
-    input [3:0] wbs_sel_i,
-    input [31:0] wbs_dat_i,
-    input [31:0] wbs_adr_i,
-    output wbs_ack_o,
-    output [31:0] wbs_dat_o,
+     // IOs - connections to chip 
+    input  [`MPRJ_IO_PADS-1:0] io_in,
+    output [`MPRJ_IO_PADS-1:0] io_out,
+    output [`MPRJ_IO_PADS-1:0] io_oeb
 
-    // Logic Analyzer Signals
-    input  [127:0] la_data_in,
-    output [127:0] la_data_out,
-    input  [127:0] la_oenb,
-
-    // IOs
-    input  [15:0] io_in,
-    output [15:0] io_out,
-    output [15:0] io_oeb,
-
-    // IRQ
-    output [2:0] irq
 );
-    wire clk;
-    wire rst;
 
-    wire [15:0] io_in;
-    wire [15:0] io_out;
-    wire [15:0] io_oeb;
+    wire b; wire clk;  wire L1; wire L2;
+    // sensor inputs
+    wire S1;  wire S2; wire S3; wire S4;
+    // motor outputs (to relay module)
+    wire MIN11; wire MIN21; wire MIN12; wire MIN22;
+    
+    // to connect s & m 
+    wire Dbit_from_s_to_m;
+    wire Abit_from_s_to_m;
 
-    wire [15:0] rdata; 
-    wire [15:0] wdata;
-    wire [15:0] count;
+    // inputs
+    assign clk = io_in[10];
+    assign io_oeb[10] = 1'b1;
 
-    wire valid;
-    wire [3:0] wstrb;
-    wire [31:0] la_write;
+    assign b = io_in[11];
+    assign io_oeb[11] = 1'b1;
 
-    // WB MI A
-    assign valid = wbs_cyc_i && wbs_stb_i; 
-    assign wstrb = wbs_sel_i & {4{wbs_we_i}};
-    assign wbs_dat_o = rdata;
-    assign wdata = wbs_dat_i[15:0];
+    assign S1 = io_in[14];
+    assign io_oeb[14] = 1'b1;
 
-    // IO
-    assign io_out = count;
-    assign io_oeb = {(15){rst}};
+    assign S2 = io_in[15];
+    assign io_oeb[15] = 1'b1;
 
-    // IRQ
-    assign irq = 3'b000;	// Unused
+    assign S3 = io_in[16];
+    assign io_oeb[16] = 1'b1;
 
-    // LA
-    assign la_data_out = {{(127-BITS){1'b0}}, count};
-    // Assuming LA probes [63:32] are for controlling the count register  
-    assign la_write = ~la_oenb[63:32] & ~{BITS{valid}};
-    // Assuming LA probes [65:64] are for controlling the count clk & reset  
-    assign clk = (~la_oenb[64]) ? la_data_in[64]: wb_clk_i;
-    assign rst = (~la_oenb[65]) ? la_data_in[65]: wb_rst_i;
+    assign S1 = io_in[17];
+    assign io_oeb[17] = 1'b1;
 
-    counter #(
-        .BITS(BITS)
-    ) counter(
-        .clk(clk),
-        .reset(rst),
-        .ready(wbs_ack_o),
-        .valid(valid),
-        .rdata(rdata),
-        .wdata(wbs_dat_i),
-        .wstrb(wstrb),
-        .la_write(la_write),
-        .la_input(la_data_in[63:32]),
-        .count(count)
+    // outputs
+    assign io_out[12] = L1;
+    assign io_oeb[12] = 1'b0;
+
+    assign io_out[13] = L2;
+    assign io_oeb[13] = 1'b0;
+
+    assign io_out[18] = MIN11;
+    assign io_oeb[18] = 1'b0;
+
+    assign io_out[19] = MIN21;
+    assign io_oeb[19] = 1'b0;
+
+    assign io_out[20] = MIN12;
+    assign io_oeb[20] = 1'b0;
+
+    assign io_out[21] = MIN22;
+    assign io_oeb[21] = 1'b0;
+
+
+    // instantiate the modules 
+    state_logic s(
+        .b(b),
+        .clk(clk), 
+        .L1(L1),
+        .L2(L2),
+        .D(Dbit_from_s_to_m),
+        .A(Abit_from_s_to_m) );
+
+    motor_logic m(
+        .D(Dbit_from_s_to_m), 
+        .A(Abit_from_s_to_m),
+        .S1(S1), .S2(S2), .S3(S3), .S4(S4),
+        .MIN11(MIN11), .MIN21(MIN21), .MIN12(MIN12), .MIN22(MIN22)
     );
 
 endmodule
 
-module counter #(
-    parameter BITS = 32
-)(
+module state_logic(
+    input b,
     input clk,
-    input reset,
-    input valid,
-    input [3:0] wstrb,
-    input [15:0] wdata,
-    input [BITS-1:0] la_write,
-    input [BITS-1:0] la_input,
-    output ready,
-    output [15:0] rdata,
-    output [15:0] count
-);
-    reg ready;
-    reg [15:0] count;
-    reg [15:0] rdata;
+    output L1, 
+    output L2,
+    output reg D,
+    output reg A);
 
-    always @(posedge clk) begin
-        if (reset) begin
-            count <= 0;
-            ready <= 0;
-        end else begin
-            ready <= 1'b0;
-            if (~|la_write) begin
-                count <= count + 1;
-            end
-            if (valid && !ready) begin
-                ready <= 1'b1;
-                rdata <= count;
-                if (wstrb[0]) count[7:0]   <= wdata[7:0];
-                if (wstrb[1]) count[15:8]  <= wdata[15:8];
-            end else if (|la_write) begin
-                count <= la_write & la_input;
-            end
-        end
-    end
+    reg l1, l2 = 0;
+
+   // state encodings
+   // OFF - 00, Defense - 01, Attack - 10
+   localparam   BL_OFF = 2'b00,
+                BL_D = 2'b01,
+                BL_A = 2'b10;
+
+   // array (2-bit) to store the state
+   reg [1:0] BL_State;
+
+   initial begin
+       // set any initial values
+     BL_State = BL_OFF;
+     end
+
+   always @(posedge clk) begin
+          // state transitions
+           case (BL_State)
+
+               BL_OFF: begin
+                   if (!b) begin
+                       BL_State = BL_OFF;
+                   end
+                   else if (b) begin
+                       BL_State = BL_D;
+                   end
+               end
+               BL_D: begin
+                   if (!b) begin
+                       BL_State = BL_D;
+                   end
+                   else if (b) begin
+                       BL_State = BL_A;
+                   end
+               end
+               BL_A: begin
+                   if (!b) begin
+                       BL_State = BL_A;
+                   end
+                   else if (b) begin
+                       BL_State = BL_OFF;
+                   end
+               end
+               default: begin
+                   BL_State = BL_OFF;
+               end
+           endcase
+
+           // state actions
+           case (BL_State) 
+               BL_OFF: begin
+                   l1 = 0;
+                   l2 = 0;
+                   A = 0;
+                   D = 0;
+               end
+               BL_D: begin
+                   l1 = 1;
+                   l2 = 0;
+                   A = 0;
+                   D = 1;
+               end
+               BL_A: begin
+                   l1 = 0;
+                   l2 = 1;
+                   A = 1;
+                   D = 0;
+               end
+               default: begin
+                   A = 0;
+                   D = 0;
+               end
+           endcase
+   end
+
+    /* wires must be assigned values after always block */
+   assign L1 = l1;  
+   assign L2 = l2;
 
 endmodule
+
+module motor_logic
+    (D, A,
+    S1, S2, S3, S4,
+    MIN11, MIN21, MIN12, MIN22
+    );
+
+    input D, A, S1, S2, S3, S4;
+    output reg MIN11, MIN21, MIN12, MIN22;
+    
+    always @(D, A, S1, S2, S3, S4) begin
+
+        MIN11 = ~D & A & ~S2 & ~S3 & S4 ||
+         ~D & A & S3 & ~S4 || ~D & A & S1 & S4 ||
+          D & ~A & ~S1 & S2 & ~S4 || D & ~A & S1 & 
+          ~S2 & ~S3 || D & ~A & S1 & ~S3 & S4 ||
+           D & ~A & S1 & S2 & S3;
+
+        MIN21 = ~D & A & ~S1 & S3 & S4 ||
+         ~D & A & ~S1 & S2 & ~S3 || ~D & A & S1 & 
+         ~S3 & ~S4 || D & ~A & ~S1 & S4 || D & ~A & 
+         ~S2 & S3 || D & ~A & S1 & S2 & ~S3 & ~S4;
+
+        MIN12 = ~D & A & ~S1 & ~S3 & S4 || ~D &
+         A & ~S1 & S2 & S3 || ~D & A & S1 & ~S2 & ~S3
+          || D & ~A & ~S1 & S3 & ~S4 || D & ~A & ~S1 & S2
+           || D & ~A & S2 & S3 & ~S4 || D & ~A & S1 & ~S2 & ~S3 & S4;
+
+        MIN22 = ~D & A & ~S2 & S3 || ~D & A & S2 &
+         ~S3 & ~S4 || ~D & A & S1 & S2 || D & ~A & ~S1
+          & ~S2 & S4 || D & ~A & S1 & ~S2 & ~S4 || D &
+           ~A & S1 & S3 & S4 || D & ~A & S1 & S2 & ~S3;
+           
+    end
+endmodule
+
 `default_nettype wire
