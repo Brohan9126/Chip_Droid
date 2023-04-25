@@ -20,6 +20,10 @@ module user_proj_example #(
     wire S1;  wire S2; wire S3; wire S4;
     // motor outputs (to relay module)
     wire MIN11; wire MIN21; wire MIN12; wire MIN22;
+
+    wire [`MPRJ_IO_PADS-1:0] io_in;
+    wire [`MPRJ_IO_PADS-1:0] io_out;
+    wire [`MPRJ_IO_PADS-1:0] io_oeb;
     
     // to connect s & m 
     wire Dbit_from_s_to_m;
@@ -41,7 +45,7 @@ module user_proj_example #(
     assign S3 = io_in[16];
     assign io_oeb[16] = 1'b1;
 
-    assign S1 = io_in[17];
+    assign S4 = io_in[17];
     assign io_oeb[17] = 1'b1;
 
     // outputs
@@ -160,6 +164,8 @@ module state_logic(
                    D = 0;
                end
                default: begin
+                   l1 = 0;
+                   l2 = 0;
                    A = 0;
                    D = 0;
                end
